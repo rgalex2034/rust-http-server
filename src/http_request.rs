@@ -11,14 +11,21 @@ pub struct HttpRequest {
     method: String,
     path: String,
     headers: HashMap<String, String>,
+    body_stream: BufReader<TcpStream>,
 }
 
 impl HttpRequest {
-    pub fn new(method: String, path: String, headers: HashMap<String, String>) -> HttpRequest {
+    pub fn new(
+        method: String,
+        path: String,
+        headers: HashMap<String, String>,
+        body_stream: BufReader<TcpStream>,
+    ) -> HttpRequest {
         HttpRequest {
             method,
             path,
             headers,
+            body_stream,
         }
     }
 
@@ -37,23 +44,30 @@ impl HttpRequest {
     pub fn header(&self, key: &str) -> Option<&String> {
         self.headers.get(key)
     }
+
+    pub fn body_stream(&self) -> &BufReader<TcpStream> {
+        &self.body_stream
+    }
 }
 
-impl TryFrom<&TcpStream> for HttpRequest {
+impl TryFrom<TcpStream> for HttpRequest {
     type Error = HttpRequestParseError;
-    fn try_from(stream: &TcpStream) -> Result<Self, Self::Error> {
-        let mut reader = BufReader::new(stream).lines();
 
-        let status_line = reader
-            .next()
-            .ok_or(HttpRequestParseError(
+    fn try_from(stream: TcpStream) -> Result<Self, Self::Error> {
+        let mut reader = BufReader::new(stream);
+
+        let mut status_line = String::new();
+        reader.read_line(&mut status_line).map_err(|error| {
+            HttpRequestParseError(format!(
+                "TcpStream error. Could not read from TcpStream\nInner: {error}"
+            ))
+        })?;
+
+        if status_line.trim().is_empty() {
+            return Err(HttpRequestParseError(
                 "Invalid request: Missing HTTP status line.".to_owned(),
-            ))?
-            .map_err(|error| {
-                HttpRequestParseError(format!(
-                    "TcpStream error. Could not read from TcpStream\nInner: {error}"
-                ))
-            })?;
+            ));
+        }
 
         let mut status_line_iter = status_line.trim().split(" ");
 
@@ -65,15 +79,17 @@ impl TryFrom<&TcpStream> for HttpRequest {
         ))?;
 
         let mut headers = HashMap::new();
-        while let Some(line) = reader.next() {
-            let line = line.map_err(|error| {
+        loop {
+            let mut line = String::new();
+            let len = reader.read_line(&mut line).map_err(|error| {
                 HttpRequestParseError(format!(
                     "TcpStream error. Could not read from TcpStream\nInner: {error}"
                 ))
             })?;
 
-            // Ending of headers, skip parsing them.
-            if line.is_empty() {
+            let line = line.trim();
+
+            if line.is_empty() || len == 0 {
                 break;
             }
 
@@ -92,7 +108,18 @@ impl TryFrom<&TcpStream> for HttpRequest {
             method.to_owned(),
             path.to_owned(),
             headers,
+            reader,
         ))
+    }
+}
+
+pub trait HttpInnerStream {
+    fn unpack_stream(self) -> BufReader<TcpStream>;
+}
+
+impl HttpInnerStream for HttpRequest {
+    fn unpack_stream(self) -> BufReader<TcpStream> {
+        self.body_stream
     }
 }
 
