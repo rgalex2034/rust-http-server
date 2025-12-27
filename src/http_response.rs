@@ -1,13 +1,13 @@
 use std::{collections::HashMap, fmt::Display};
 
 pub struct HttpResponse {
-    status: u32,
+    status: HttpStatus,
     headers: HashMap<String, String>,
     body: Option<String>,
 }
 
 impl HttpResponse {
-    pub fn new(status: u32) -> Self {
+    pub fn new(status: HttpStatus) -> Self {
         HttpResponse {
             status,
             headers: HashMap::new(),
@@ -16,10 +16,10 @@ impl HttpResponse {
     }
 
     pub fn http_404() -> Self {
-        HttpResponse::new(404)
+        HttpResponse::new(HttpStatus::NotFound)
     }
 
-    pub fn set_status(&mut self, status: u32) {
+    pub fn set_status(&mut self, status: HttpStatus) {
         self.status = status;
     }
 
@@ -32,23 +32,11 @@ impl HttpResponse {
         self.set_header("Content-Length", &content_type.len().to_string());
         self.body = Some(String::from(content));
     }
-
-    fn status_to_str(&self) -> String {
-        let status_text = match self.status {
-            200 => "OK",
-            400 => "Bad request",
-            404 => "Not found",
-            500 => "Internal server error",
-            _ => "Unknown",
-        };
-
-        status_text.to_owned()
-    }
 }
 
 impl Display for HttpResponse {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let status_text = format!("HTTP/1.1 {} {}", self.status, self.status_to_str());
+        let status_text = format!("HTTP/1.1 {}", self.status);
         let headers_text = self
             .headers
             .iter()
@@ -65,5 +53,43 @@ impl Display for HttpResponse {
                     Ok(())
                 }
             })
+    }
+}
+
+pub enum HttpStatus {
+    Ok,
+    BadRequest,
+    NotFound,
+    InternalServerError,
+}
+
+impl From<&HttpStatus> for u32 {
+    fn from(value: &HttpStatus) -> Self {
+        match value {
+            HttpStatus::Ok => 200,
+            HttpStatus::BadRequest => 400,
+            HttpStatus::NotFound => 404,
+            HttpStatus::InternalServerError => 500,
+        }
+    }
+}
+
+impl From<&HttpStatus> for &str {
+    fn from(value: &HttpStatus) -> Self {
+        match value {
+            HttpStatus::Ok => "OK",
+            HttpStatus::BadRequest => "Bad request",
+            HttpStatus::NotFound => "Not found",
+            HttpStatus::InternalServerError => "Internal server error",
+        }
+    }
+}
+
+impl Display for HttpStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let status_code: u32 = self.into();
+        let status_msg: &str = self.into();
+
+        write!(f, "{} {}", status_code, status_msg)
     }
 }
