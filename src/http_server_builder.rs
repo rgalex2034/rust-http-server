@@ -11,7 +11,7 @@ pub struct HttpServerBuilder {
     handlers: HashMap<(String, String), Arc<RequestHandler>>,
 }
 
-type RequestHandler = dyn (Fn(&HttpRequest) -> HttpResponse) + Send + Sync + 'static;
+type RequestHandler = dyn Fn(&HttpRequest) -> HttpResponse + Send + Sync + 'static;
 
 impl HttpServerBuilder {
     pub fn new(bind_address: &str, thread_pool_size: usize) -> HttpServerBuilder {
