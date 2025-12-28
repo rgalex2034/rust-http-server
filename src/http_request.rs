@@ -57,35 +57,29 @@ impl TryFrom<TcpStream> for HttpRequest {
         let mut reader = BufReader::new(stream);
 
         let mut status_line = String::new();
-        reader.read_line(&mut status_line).map_err(|error| {
-            HttpRequestParseError(format!(
-                "TcpStream error. Could not read from TcpStream\nInner: {error}"
-            ))
-        })?;
+        reader
+            .read_line(&mut status_line)
+            .map_err(|error| HttpRequestParseError::StreamError(error))?;
 
         if status_line.trim().is_empty() {
-            return Err(HttpRequestParseError(
-                "Invalid request: Missing HTTP status line.".to_owned(),
-            ));
+            return Err(HttpRequestParseError::MissingStatusLine);
         }
 
         let mut status_line_iter = status_line.trim().split(" ");
 
-        let method = status_line_iter.next().ok_or(HttpRequestParseError(
-            "Invalid request: Missing method".to_owned(),
-        ))?;
-        let path = status_line_iter.next().ok_or(HttpRequestParseError(
-            "Invalid request: Missing path".to_owned(),
-        ))?;
+        let method = status_line_iter
+            .next()
+            .ok_or(HttpRequestParseError::MissingMethod)?;
+        let path = status_line_iter
+            .next()
+            .ok_or(HttpRequestParseError::MissingPath)?;
 
         let mut headers = HashMap::new();
         loop {
             let mut line = String::new();
-            let len = reader.read_line(&mut line).map_err(|error| {
-                HttpRequestParseError(format!(
-                    "TcpStream error. Could not read from TcpStream\nInner: {error}"
-                ))
-            })?;
+            let len = reader
+                .read_line(&mut line)
+                .map_err(|error| HttpRequestParseError::StreamError(error))?;
 
             let line = line.trim();
 
@@ -94,12 +88,12 @@ impl TryFrom<TcpStream> for HttpRequest {
             }
 
             let mut header_it = line.split(":");
-            let name = header_it.next().ok_or(HttpRequestParseError(
-                "Invalid request: Empty header name.".to_owned(),
-            ))?;
-            let value = header_it.next().ok_or(HttpRequestParseError(
-                "Invalid request: Empty header value.".to_owned(),
-            ))?;
+            let name = header_it
+                .next()
+                .ok_or(HttpRequestParseError::MissingHeaderName)?;
+            let value = header_it
+                .next()
+                .ok_or(HttpRequestParseError::MissingHeaderValue(name.to_owned()))?;
 
             headers.insert(name.to_owned(), value.to_owned());
         }
@@ -124,12 +118,27 @@ impl HttpInnerStream for HttpRequest {
 }
 
 #[derive(Debug)]
-pub struct HttpRequestParseError(String);
+pub enum HttpRequestParseError {
+    StreamError(std::io::Error),
+    MissingStatusLine,
+    MissingMethod,
+    MissingPath,
+    MissingHeaderName,
+    MissingHeaderValue(String),
+}
 
 impl Display for HttpRequestParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let HttpRequestParseError(error) = self;
-        f.write_str(&format!("Error wile parsing HttpRequest: {}", error))
+        let msg = match self {
+            Self::StreamError(error) => format!("Stream error: {}.", error),
+            Self::MissingStatusLine => String::from("Missing status line."),
+            Self::MissingMethod => String::from("Missing method."),
+            Self::MissingPath => String::from("Missing path."),
+            Self::MissingHeaderName => String::from("Missing header name. Maybe an empy header?"),
+            Self::MissingHeaderValue(header) => format!("Missing header value for {header}"),
+        };
+
+        f.write_str(&format!("Error wile parsing HttpRequest: {}", msg))
     }
 }
 
