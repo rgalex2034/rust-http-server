@@ -29,7 +29,7 @@ impl HttpResponse {
 
     pub fn set_body(&mut self, content_type: &str, content: &str) {
         self.set_header("Content-Type", content_type);
-        self.set_header("Content-Length", &content_type.len().to_string());
+        self.set_header("Content-Length", &content.len().to_string());
         self.body = Some(String::from(content));
     }
 }
