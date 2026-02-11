@@ -3,7 +3,7 @@ use std::{thread, time::Duration};
 use async_http::{self, HttpResponse, HttpServerBuilder, HttpStatus};
 
 fn main() {
-    let mut builder = HttpServerBuilder::new("127.0.0.1:7878", 5);
+    let mut builder = HttpServerBuilder::new("127.0.0.1:7878", num_cpus::get() * 25);
 
     builder.get("/", |_request| {
         let mut response = HttpResponse::new(HttpStatus::Ok);

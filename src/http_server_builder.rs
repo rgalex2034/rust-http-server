@@ -38,6 +38,10 @@ impl HttpServerBuilder {
     }
 
     pub fn build(self) -> HttpServer {
+        println!(
+            "Initializing dispatcher with {} workers.",
+            self.thread_pool_size
+        );
         let http_dispatcher =
             HttpDispatcher::new(self.handlers, ThreadPool::new(self.thread_pool_size));
         HttpServer::new(&self.bind_address, http_dispatcher)
