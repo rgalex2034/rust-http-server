@@ -102,6 +102,11 @@ status_codes!(
     (426, UpgradeRequired, "Upgrade Required"),
     //5XX
     (500, InternalServerError, "Internal Server Error"),
+    (501, NotImplemented, "Not Implemented"),
+    (502, BadGateway, "Bad Gateway"),
+    (503, ServiceUnavailable, "Service Unavailable"),
+    (504, GatewayTimeout, "Gateway Timeout"),
+    (505, HttpVersionNotSupported, "HTTP Version Not Supported"),
 );
 
 impl Display for HttpStatus {
