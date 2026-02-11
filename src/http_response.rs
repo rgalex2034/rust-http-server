@@ -1,3 +1,4 @@
+use crate::HttpStatus;
 use std::{collections::HashMap, fmt::Display};
 
 pub struct HttpResponse {
@@ -53,43 +54,5 @@ impl Display for HttpResponse {
                     Ok(())
                 }
             })
-    }
-}
-
-pub enum HttpStatus {
-    Ok,
-    BadRequest,
-    NotFound,
-    InternalServerError,
-}
-
-impl From<&HttpStatus> for u32 {
-    fn from(value: &HttpStatus) -> Self {
-        match value {
-            HttpStatus::Ok => 200,
-            HttpStatus::BadRequest => 400,
-            HttpStatus::NotFound => 404,
-            HttpStatus::InternalServerError => 500,
-        }
-    }
-}
-
-impl From<&HttpStatus> for &str {
-    fn from(value: &HttpStatus) -> Self {
-        match value {
-            HttpStatus::Ok => "OK",
-            HttpStatus::BadRequest => "Bad request",
-            HttpStatus::NotFound => "Not found",
-            HttpStatus::InternalServerError => "Internal server error",
-        }
-    }
-}
-
-impl Display for HttpStatus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let status_code: u32 = self.into();
-        let status_msg: &str = self.into();
-
-        write!(f, "{} {}", status_code, status_msg)
     }
 }
