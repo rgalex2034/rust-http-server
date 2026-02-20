@@ -58,8 +58,7 @@ impl TryFrom<TcpStream> for HttpRequest {
 
         let mut status_line = String::new();
         reader
-            .read_line(&mut status_line)
-            .map_err(|error| HttpRequestParseError::StreamError(error))?;
+            .read_line(&mut status_line)?;
 
         if status_line.trim().is_empty() {
             return Err(HttpRequestParseError::MissingStatusLine);
@@ -78,8 +77,7 @@ impl TryFrom<TcpStream> for HttpRequest {
         loop {
             let mut line = String::new();
             let len = reader
-                .read_line(&mut line)
-                .map_err(|error| HttpRequestParseError::StreamError(error))?;
+                .read_line(&mut line)?;
 
             let line = line.trim();
 
@@ -125,6 +123,12 @@ pub enum HttpRequestParseError {
     MissingPath,
     MissingHeaderName,
     MissingHeaderValue(String),
+}
+
+impl From<std::io::Error> for HttpRequestParseError {
+    fn from(value: std::io::Error) -> Self {
+        Self::StreamError(value)
+    }
 }
 
 impl Display for HttpRequestParseError {
