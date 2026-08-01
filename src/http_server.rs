@@ -23,7 +23,13 @@ impl HttpServer {
             self.tcp_listener.local_addr().unwrap()
         );
         for stream in self.tcp_listener.incoming() {
-            let stream = stream.expect("TcpListener dropped. Can not get incoming connections.");
+            let stream = match stream {
+                Ok(stream) => stream,
+                _ => {
+                    println!("TcpListener dropped. Can not get incoming connections.");
+                    break;
+                }
+            };
 
             let result = self.http_dispatcher.dispatch(stream);
 

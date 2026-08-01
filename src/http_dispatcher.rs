@@ -10,7 +10,7 @@ use std::thread::JoinHandle;
 use std::{collections::HashMap, net::TcpStream};
 
 pub struct HttpDispatcher {
-    sender: mpsc::Sender<TcpStream>,
+    sender: Option<mpsc::Sender<TcpStream>>,
     join_handle: Option<thread::JoinHandle<()>>,
 }
 
@@ -24,7 +24,7 @@ impl HttpDispatcher {
         let (sender, join_handle) = Self::spawn_dispatcher(thread_pool, handlers);
 
         HttpDispatcher {
-            sender,
+            sender: Some(sender),
             join_handle: Some(join_handle),
         }
     }
@@ -40,9 +40,12 @@ impl HttpDispatcher {
                 Arc::new(|_: &HttpRequest| HttpResponse::http_404());
 
             loop {
-                let tcp_stream: TcpStream = receiver
-                    .recv()
-                    .expect("Dispatcher: sender not working. Stopping receiving request.");
+                let tcp_stream: TcpStream = match receiver.recv().inspect_err(|_| {
+                    println!("Dispatcher: sender not working. Stopping receiving request.")
+                }) {
+                    Ok(tcp_stream) => tcp_stream,
+                    _ => break,
+                };
 
                 let request: HttpRequest = match tcp_stream.try_into() {
                     Ok(request) => request,
@@ -77,12 +80,19 @@ impl HttpDispatcher {
     }
 
     pub fn dispatch(&self, tcp_stream: TcpStream) -> Result<(), mpsc::SendError<TcpStream>> {
-        self.sender.send(tcp_stream)
+        if let Some(sender) = &self.sender {
+            return sender.send(tcp_stream);
+        }
+        Ok(())
     }
 }
 
 impl Drop for HttpDispatcher {
     fn drop(&mut self) {
+        println!("Dispatcher: Shutting down...");
+        let channel = self.sender.take();
+        drop(channel);
+
         if let Some(handle) = self.join_handle.take() {
             let _ = handle.join().inspect_err(|_| {
                 eprintln!("Dispatcher: Error while cleaning up dispatcher thread.");

@@ -8,7 +8,7 @@ use std::{
 
 pub struct ThreadPool {
     workers: Vec<Worker>,
-    sender: mpsc::Sender<Job>,
+    sender: Option<mpsc::Sender<Job>>,
 }
 
 type Job = Box<dyn FnOnce() + Send + 'static>;
@@ -27,7 +27,10 @@ impl ThreadPool {
             workers.push(Worker::new(id, receiver));
         }
 
-        ThreadPool { workers, sender }
+        ThreadPool {
+            workers,
+            sender: Some(sender),
+        }
     }
 
     pub fn execute<F>(&self, f: F) -> Result<(), SendError<Box<dyn FnOnce() + Send + 'static>>>
@@ -35,12 +38,20 @@ impl ThreadPool {
         F: FnOnce() + Send + 'static,
     {
         let job = Box::new(f);
-        self.sender.send(job)
+        if let Some(sender) = &self.sender {
+            return sender.send(job);
+        };
+
+        Ok(())
     }
 }
 
 impl Drop for ThreadPool {
     fn drop(&mut self) {
+        println!("ThreadPool: Dropping channel.");
+        let channel = self.sender.take();
+        drop(channel);
+
         for worker in self.workers.drain(..) {
             println!("ThreadPool: Shutting Worker[{}]", worker.id);
             match worker.thread.join() {
@@ -72,9 +83,12 @@ impl Worker {
                 };
 
                 println!("Worker[{id}]: Awaiting message...");
-                let job = receiver.recv().expect(&format!(
-                    "Worker[{id}] Thread shutting down. Sender closed the channel."
-                ));
+                let job = match receiver.recv().inspect_err(|_| {
+                    println!("Worker[{id}] Thread shutting down. Sender closed the channel.")
+                }) {
+                    Ok(job) => job,
+                    _ => break,
+                };
 
                 // Drop the receiver before calling the job.
                 // This way, we release the lock, and other workers can start
